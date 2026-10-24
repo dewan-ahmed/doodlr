@@ -147,8 +147,13 @@ export default function Game({ room, player, players, round, myWord, roundEnd })
 
       {roundEnd && (
         <div className="round-end-banner">
-          Round over ({roundEnd.reason === "timeout" ? "time's up!" : "everyone guessed it!"}) —
-          the word was <strong>{roundEnd.word}</strong>.
+          Round over (
+          {roundEnd.reason === "timeout"
+            ? "time's up!"
+            : roundEnd.reason === "drawer-left"
+            ? "the drawer left"
+            : "everyone guessed it!"}
+          ) — the word was <strong>{roundEnd.word}</strong>.
         </div>
       )}
 

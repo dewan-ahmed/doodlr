@@ -180,14 +180,39 @@ export function registerSocketHandlers(io) {
       const room = getRoom(code);
       if (!room) return;
 
+      const wasCurrentDrawer = socket.id === room.currentDrawerId;
+      const wasMidTurn = room.status === "playing" || room.status === "choosing";
+
       removePlayer(room, socket.id);
 
       if (isRoomEmpty(room)) {
         if (room.roundTimer) clearTimeout(room.roundTimer);
         if (room.roundEndTimer) clearTimeout(room.roundEndTimer);
         deleteRoom(code);
-      } else {
-        io.to(code).emit("room:players", listPlayers(room));
+        console.log(`[disconnect] ${socket.id} (room ${code}, now empty)`);
+        return;
+      }
+
+      io.to(code).emit("room:players", listPlayers(room));
+
+      const gameInProgress =
+        room.status === "playing" || room.status === "choosing" || room.status === "round-end";
+
+      if (gameInProgress && room.players.size < 2) {
+        // Not enough players left to continue a game — end it cleanly.
+        if (room.roundTimer) clearTimeout(room.roundTimer);
+        if (room.roundEndTimer) clearTimeout(room.roundEndTimer);
+        room.roundTimer = null;
+        room.roundEndTimer = null;
+        endGame(io, room);
+      } else if (wasCurrentDrawer && wasMidTurn) {
+        // The drawer left before/during their turn — move the game along
+        // rather than waiting out a full round timer with nobody drawing.
+        if (room.status === "choosing") {
+          advanceRound(io, room);
+        } else {
+          endRound(io, room, "drawer-left");
+        }
       }
 
       console.log(`[disconnect] ${socket.id} (room ${code})`);
