@@ -71,7 +71,20 @@ export function registerSocketHandlers(io) {
       });
     });
 
-    // TODO: drawing:stroke, drawing:clear, guess:submit, round:end, game:over
+    socket.on("drawing:stroke", (segment) => {
+      const code = socket.data.roomCode;
+      const room = getRoom(code);
+      if (!room) return;
+      if (room.status !== "playing") return;
+      if (socket.id !== room.currentDrawerId) return;
+
+      // Relay to everyone else in the room as-is; the drawer already
+      // rendered it locally. `segment` is { from: {x,y}, to: {x,y}, color, size }
+      // with x/y as 0..1 fractions of canvas size (resolution-independent).
+      socket.to(room.code).emit("drawing:stroke", segment);
+    });
+
+    // TODO: drawing:clear, guess:submit, round:end, game:over
 
     socket.on("disconnect", () => {
       const code = socket.data.roomCode;

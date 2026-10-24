@@ -75,6 +75,11 @@
 .game canvas {
   border: 2px solid #333;
   touch-action: none;
+  cursor: default;
+}
+
+.game canvas.drawable {
+  cursor: crosshair;
 }
 
 .sidebar {
