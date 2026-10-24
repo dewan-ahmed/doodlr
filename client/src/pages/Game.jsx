@@ -2,8 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { socket } from "../socket.js";
 import { clearCanvas, drawSegment, getRelativePoint } from "../drawing.js";
 
-const STROKE_COLOR = "#1a1a1a";
-const STROKE_SIZE = 4;
+const COLOR_PALETTE = [
+  "#1a1a1a", // black
+  "#e03131", // red
+  "#2f9e44", // green
+  "#1971c2", // blue
+  "#f08c00", // orange
+  "#ae3ec9", // purple
+  "#ffffff", // white (eraser-ish, since canvas bg is white)
+];
+
+const BRUSH_SIZES = [
+  { label: "S", value: 2 },
+  { label: "M", value: 4 },
+  { label: "L", value: 8 },
+  { label: "XL", value: 14 },
+];
+
+const DEFAULT_COLOR = COLOR_PALETTE[0];
+const DEFAULT_SIZE = BRUSH_SIZES[1].value;
 
 export default function Game({ room, player, players, round, myWord, roundEnd }) {
   const canvasRef = useRef(null);
@@ -15,6 +32,8 @@ export default function Game({ room, player, players, round, myWord, roundEnd })
   const [guessText, setGuessText] = useState("");
   const [hasGuessedCorrectly, setHasGuessedCorrectly] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(null);
+  const [strokeColor, setStrokeColor] = useState(DEFAULT_COLOR);
+  const [strokeSize, setStrokeSize] = useState(DEFAULT_SIZE);
 
   const isDrawer = round?.drawerId === player?.id;
   const drawerName = players?.find((p) => p.id === round?.drawerId)?.name;
@@ -103,7 +122,7 @@ export default function Game({ room, player, players, round, myWord, roundEnd })
     const canvas = canvasRef.current;
     const point = getRelativePoint(canvas, e.clientX, e.clientY);
     const from = lastPointRef.current;
-    const segment = { from, to: point, color: STROKE_COLOR, size: STROKE_SIZE };
+    const segment = { from, to: point, color: strokeColor, size: strokeSize };
 
     drawSegment(ctxRef.current, canvas, from, point, segment);
     socket.emit("drawing:stroke", segment);
@@ -171,9 +190,37 @@ export default function Game({ room, player, players, round, myWord, roundEnd })
           />
 
           {isDrawer && (
-            <button type="button" className="clear-btn" onClick={handleClear}>
-              Clear canvas
-            </button>
+            <div className="toolbar">
+              <div className="color-palette">
+                {COLOR_PALETTE.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    className={`color-swatch${color === strokeColor ? " active" : ""}`}
+                    style={{ backgroundColor: color }}
+                    aria-label={`Color ${color}`}
+                    onClick={() => setStrokeColor(color)}
+                  />
+                ))}
+              </div>
+
+              <div className="brush-sizes">
+                {BRUSH_SIZES.map(({ label, value }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`brush-size-btn${value === strokeSize ? " active" : ""}`}
+                    onClick={() => setStrokeSize(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <button type="button" className="clear-btn" onClick={handleClear}>
+                Clear canvas
+              </button>
+            </div>
           )}
         </div>
 
