@@ -13,6 +13,8 @@ import {
   GUESSER_MAX_POINTS,
   GUESSER_MIN_POINTS,
   ROUND_DURATION_MS,
+  ROUND_END_DELAY_MS,
+  ROUNDS_PER_PLAYER,
 } from "./constants.js";
 
 // Socket.io event skeleton. Game-specific events (drawing strokes, guesses,
@@ -51,12 +53,16 @@ export function registerSocketHandlers(io) {
       const code = socket.data.roomCode;
       const room = getRoom(code);
       if (!room) return;
+      if (room.status !== "lobby") return; // ignore if a game is already running
 
       const players = listPlayers(room);
       if (players.length < 2) return;
 
+      room.drawerOrder = shuffle(players.map((p) => p.id));
+      room.turnNumber = 1;
+      room.totalTurns = room.drawerOrder.length * ROUNDS_PER_PLAYER;
       room.round = 1;
-      beginWordChoice(io, room, players[0].id);
+      beginWordChoice(io, room, room.drawerOrder[0]);
     });
 
     socket.on("word:choose", ({ word }) => {
@@ -178,6 +184,7 @@ export function registerSocketHandlers(io) {
 
       if (isRoomEmpty(room)) {
         if (room.roundTimer) clearTimeout(room.roundTimer);
+        if (room.roundEndTimer) clearTimeout(room.roundEndTimer);
         deleteRoom(code);
       } else {
         io.to(code).emit("room:players", listPlayers(room));
@@ -207,8 +214,8 @@ function beginWordChoice(io, room, drawerId) {
 }
 
 // Ends the current drawing round (timeout or everyone guessed correctly),
-// clearing any pending timer and telling the room what the word was.
-// Rotating to the next drawer/round happens in a later chunk.
+// clearing any pending timer and telling the room what the word was. After
+// a short delay (so players can read the reveal), advances to the next turn.
 function endRound(io, room, reason) {
   if (room.roundTimer) {
     clearTimeout(room.roundTimer);
@@ -222,4 +229,43 @@ function endRound(io, room, reason) {
     word: room.currentWord,
     players: listPlayers(room),
   });
+
+  if (room.roundEndTimer) clearTimeout(room.roundEndTimer);
+  room.roundEndTimer = setTimeout(() => {
+    room.roundEndTimer = null;
+    advanceRound(io, room);
+  }, ROUND_END_DELAY_MS);
+}
+
+// Moves to the next drawer's turn, or ends the game once every player has
+// had their allotted number of turns (ROUNDS_PER_PLAYER).
+function advanceRound(io, room) {
+  room.turnNumber += 1;
+
+  if (room.turnNumber > room.totalTurns) {
+    endGame(io, room);
+    return;
+  }
+
+  const nextDrawerId = room.drawerOrder[(room.turnNumber - 1) % room.drawerOrder.length];
+
+  // If the next drawer disconnected mid-game, skip their turn rather than
+  // stalling the game. (Reassigning drawerOrder on disconnect is a further
+  // edge-case improvement — see README status list.)
+  if (!room.players.has(nextDrawerId)) {
+    advanceRound(io, room);
+    return;
+  }
+
+  room.round = room.turnNumber;
+  beginWordChoice(io, room, nextDrawerId);
+}
+
+function endGame(io, room) {
+  room.status = "game-over";
+  io.to(room.code).emit("game:over", { players: listPlayers(room) });
+}
+
+function shuffle(array) {
+  return [...array].sort(() => Math.random() - 0.5);
 }

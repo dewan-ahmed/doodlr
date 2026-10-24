@@ -30,6 +30,10 @@ export function createRoom() {
     round: 0,
     roundStartedAt: null,
     roundTimer: null,
+    roundEndTimer: null,
+    drawerOrder: [],
+    turnNumber: 0,
+    totalTurns: 0,
     createdAt: Date.now(),
   };
   rooms.set(code, room);

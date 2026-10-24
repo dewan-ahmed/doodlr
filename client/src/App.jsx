@@ -3,6 +3,7 @@ import Home from "./pages/Home.jsx";
 import Lobby from "./pages/Lobby.jsx";
 import Choosing from "./pages/Choosing.jsx";
 import Game from "./pages/Game.jsx";
+import GameOver from "./pages/GameOver.jsx";
 import { socket } from "./socket.js";
 import "./App.css";
 
@@ -42,11 +43,17 @@ export default function App() {
       setPlayers(payload.players);
     }
 
+    function handleGameOver(payload) {
+      setPlayers(payload.players);
+      setScreen("game-over");
+    }
+
     socket.on("room:players", handlePlayers);
     socket.on("round:choosing", handleRoundChoosing);
     socket.on("word:choices", handleWordChoices);
     socket.on("round:start", handleRoundStart);
     socket.on("round:end", handleRoundEnd);
+    socket.on("game:over", handleGameOver);
 
     return () => {
       socket.off("room:players", handlePlayers);
@@ -54,6 +61,7 @@ export default function App() {
       socket.off("word:choices", handleWordChoices);
       socket.off("round:start", handleRoundStart);
       socket.off("round:end", handleRoundEnd);
+      socket.off("game:over", handleGameOver);
     };
   }, []);
 
@@ -82,6 +90,10 @@ export default function App() {
         onChoose={setMyWord}
       />
     );
+  }
+
+  if (screen === "game-over") {
+    return <GameOver players={players} />;
   }
 
   return (

@@ -155,3 +155,28 @@
   width: 100%;
   padding: 8px;
 }
+
+.game-over {
+  max-width: 420px;
+  margin: 80px auto;
+  text-align: center;
+}
+
+.game-over .winner {
+  font-size: 18px;
+  margin: 12px 0 24px;
+}
+
+.final-leaderboard {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+  text-align: left;
+}
+
+.final-leaderboard li {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+}
