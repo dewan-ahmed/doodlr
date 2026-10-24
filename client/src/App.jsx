@@ -69,6 +69,12 @@ export default function App() {
     setSession({ room, player });
     setPlayers(initialPlayers || []);
     setScreen("lobby");
+
+    // Reflect the room in the URL so the address bar itself is a shareable
+    // invite link (and refreshing while in the lobby keeps ?room= around).
+    const url = new URL(window.location.href);
+    url.searchParams.set("room", room);
+    window.history.replaceState({}, "", url);
   }
 
   if (screen === "home" || !session) {

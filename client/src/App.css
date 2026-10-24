@@ -37,6 +37,10 @@
   padding: 4px 0;
 }
 
+.invite-btn {
+  margin: 4px 0 16px;
+}
+
 .choosing {
   max-width: 480px;
   margin: 80px auto;
