@@ -67,6 +67,14 @@
   font-weight: 600;
 }
 
+.round-end-banner {
+  background: #fff3cd;
+  border: 1px solid #e0c36b;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+}
+
 .game-body {
   display: flex;
   gap: 16px;

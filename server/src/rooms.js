@@ -29,6 +29,7 @@ export function createRoom() {
     correctGuessers: new Set(),
     round: 0,
     roundStartedAt: null,
+    roundTimer: null,
     createdAt: Date.now(),
   };
   rooms.set(code, room);

@@ -5,7 +5,7 @@ import { clearCanvas, drawSegment, getRelativePoint } from "../drawing.js";
 const STROKE_COLOR = "#1a1a1a";
 const STROKE_SIZE = 4;
 
-export default function Game({ room, player, players, round, myWord }) {
+export default function Game({ room, player, players, round, myWord, roundEnd }) {
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
   const isDrawingRef = useRef(false);
@@ -14,9 +14,28 @@ export default function Game({ room, player, players, round, myWord }) {
   const [messages, setMessages] = useState([]);
   const [guessText, setGuessText] = useState("");
   const [hasGuessedCorrectly, setHasGuessedCorrectly] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(null);
 
   const isDrawer = round?.drawerId === player?.id;
   const drawerName = players?.find((p) => p.id === round?.drawerId)?.name;
+
+  // Local countdown derived from the server-provided end timestamp — no need
+  // for the server to push a tick every second.
+  useEffect(() => {
+    if (!round?.roundEndsAt) {
+      setSecondsLeft(null);
+      return;
+    }
+
+    function tick() {
+      const remainingMs = round.roundEndsAt - Date.now();
+      setSecondsLeft(Math.max(0, Math.ceil(remainingMs / 1000)));
+    }
+
+    tick();
+    const interval = setInterval(tick, 250);
+    return () => clearInterval(interval);
+  }, [round?.roundEndsAt]);
 
   // Set up the canvas context once.
   useEffect(() => {
@@ -74,7 +93,7 @@ export default function Game({ room, player, players, round, myWord }) {
   }, []);
 
   function handlePointerDown(e) {
-    if (!isDrawer) return;
+    if (!isDrawer || roundEnd) return;
     isDrawingRef.current = true;
     lastPointRef.current = getRelativePoint(canvasRef.current, e.clientX, e.clientY);
   }
@@ -110,7 +129,7 @@ export default function Game({ room, player, players, round, myWord }) {
     setGuessText("");
   }
 
-  const canGuess = !isDrawer && !hasGuessedCorrectly;
+  const canGuess = !isDrawer && !hasGuessedCorrectly && !roundEnd;
 
   return (
     <div className="game">
@@ -123,8 +142,15 @@ export default function Game({ room, player, players, round, myWord }) {
                 round?.wordLength ?? 0
               )}`}
         </span>
-        <span>Time: --</span>
+        <span>Time: {secondsLeft ?? "--"}</span>
       </header>
+
+      {roundEnd && (
+        <div className="round-end-banner">
+          Round over ({roundEnd.reason === "timeout" ? "time's up!" : "everyone guessed it!"}) —
+          the word was <strong>{roundEnd.word}</strong>.
+        </div>
+      )}
 
       <div className="game-body">
         <div className="canvas-wrap">

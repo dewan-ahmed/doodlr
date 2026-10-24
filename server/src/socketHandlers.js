@@ -75,7 +75,13 @@ export function registerSocketHandlers(io) {
         round: room.round,
         drawerId: room.currentDrawerId,
         wordLength: word.length,
+        roundEndsAt: room.roundStartedAt + ROUND_DURATION_MS,
       });
+
+      if (room.roundTimer) clearTimeout(room.roundTimer);
+      room.roundTimer = setTimeout(() => {
+        endRound(io, room, "timeout");
+      }, ROUND_DURATION_MS);
     });
 
     socket.on("drawing:stroke", (segment) => {
@@ -144,6 +150,11 @@ export function registerSocketHandlers(io) {
         });
 
         io.to(room.code).emit("room:players", listPlayers(room));
+
+        const eligibleGuessers = room.players.size - 1; // everyone except the drawer
+        if (eligibleGuessers > 0 && room.correctGuessers.size >= eligibleGuessers) {
+          endRound(io, room, "all-correct");
+        }
       } else {
         io.to(room.code).emit("chat:message", {
           type: "guess",
@@ -154,7 +165,7 @@ export function registerSocketHandlers(io) {
       }
     });
 
-    // TODO: round:end, game:over
+    // TODO: round rotation (next drawer) + game:over after N rounds
 
     socket.on("disconnect", () => {
       const code = socket.data.roomCode;
@@ -166,6 +177,7 @@ export function registerSocketHandlers(io) {
       removePlayer(room, socket.id);
 
       if (isRoomEmpty(room)) {
+        if (room.roundTimer) clearTimeout(room.roundTimer);
         deleteRoom(code);
       } else {
         io.to(code).emit("room:players", listPlayers(room));
@@ -192,4 +204,22 @@ function beginWordChoice(io, room, drawerId) {
   });
 
   io.to(drawerId).emit("word:choices", { choices });
+}
+
+// Ends the current drawing round (timeout or everyone guessed correctly),
+// clearing any pending timer and telling the room what the word was.
+// Rotating to the next drawer/round happens in a later chunk.
+function endRound(io, room, reason) {
+  if (room.roundTimer) {
+    clearTimeout(room.roundTimer);
+    room.roundTimer = null;
+  }
+
+  room.status = "round-end";
+
+  io.to(room.code).emit("round:end", {
+    reason,
+    word: room.currentWord,
+    players: listPlayers(room),
+  });
 }
