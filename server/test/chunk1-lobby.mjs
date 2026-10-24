@@ -43,7 +43,12 @@ async function main() {
   host.emit("game:start");
 
   const [hostPayload, guestPayload] = await Promise.all([hostChoosing, guestChoosing]);
-  assert(hostPayload.drawerId === host.id, "host (first player) is selected as drawer");
+  // Drawer order is shuffled each game, so either player may go first --
+  // just assert a valid player was picked and everyone agrees who it is.
+  assert(
+    [host.id, guest.id].includes(hostPayload.drawerId),
+    "the selected drawer is one of the two players in the room"
+  );
   assert(guestPayload.drawerId === hostPayload.drawerId, "both clients agree on drawer");
 
   host.close();

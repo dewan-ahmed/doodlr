@@ -7,14 +7,25 @@ function getInviteLink(room) {
   return url.toString();
 }
 
+const ROUND_DURATION_OPTIONS_SEC = [30, 60, 90, 120, 180];
+const ROUNDS_PER_PLAYER_OPTIONS = [1, 2, 3, 4, 5];
+
 // Waiting room shown after joining/creating, before the game starts.
-export default function Lobby({ room, player, players }) {
+export default function Lobby({ room, player, players, settings }) {
   const isHost = player?.isHost;
   const canStart = players.length >= 2;
   const [copied, setCopied] = useState(false);
 
   function handleStart() {
     socket.emit("game:start");
+  }
+
+  function handleRoundsChange(e) {
+    socket.emit("room:settings:update", { roundsPerPlayer: Number(e.target.value) });
+  }
+
+  function handleDurationChange(e) {
+    socket.emit("room:settings:update", { roundDurationMs: Number(e.target.value) * 1000 });
   }
 
   async function handleCopyInvite() {
@@ -48,6 +59,42 @@ export default function Lobby({ room, player, players }) {
           </li>
         ))}
       </ul>
+
+      <div className="game-settings">
+        <h2>Game settings</h2>
+        {isHost ? (
+          <div className="game-settings-controls">
+            <label>
+              Rounds per player
+              <select value={settings?.roundsPerPlayer ?? 2} onChange={handleRoundsChange}>
+                {ROUNDS_PER_PLAYER_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Round length
+              <select
+                value={Math.round((settings?.roundDurationMs ?? 80_000) / 1000)}
+                onChange={handleDurationChange}
+              >
+                {ROUND_DURATION_OPTIONS_SEC.map((sec) => (
+                  <option key={sec} value={sec}>
+                    {sec}s
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : (
+          <p>
+            {settings?.roundsPerPlayer ?? 2} rounds per player &middot;{" "}
+            {Math.round((settings?.roundDurationMs ?? 80_000) / 1000)}s per round
+          </p>
+        )}
+      </div>
 
       {isHost ? (
         <button onClick={handleStart} disabled={!canStart}>

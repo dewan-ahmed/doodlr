@@ -12,9 +12,11 @@ import {
   DRAWER_POINTS_PER_CORRECT_GUESS,
   GUESSER_MAX_POINTS,
   GUESSER_MIN_POINTS,
-  ROUND_DURATION_MS,
+  MAX_ROUND_DURATION_MS,
+  MAX_ROUNDS_PER_PLAYER,
+  MIN_ROUND_DURATION_MS,
+  MIN_ROUNDS_PER_PLAYER,
   ROUND_END_DELAY_MS,
-  ROUNDS_PER_PLAYER,
 } from "./constants.js";
 
 // Socket.io event skeleton. Game-specific events (drawing strokes, guesses,
@@ -30,7 +32,13 @@ export function registerSocketHandlers(io) {
       socket.join(room.code);
       socket.data.roomCode = room.code;
 
-      callback?.({ room: room.code, player, players: listPlayers(room), gameState: null });
+      callback?.({
+        room: room.code,
+        player,
+        players: listPlayers(room),
+        gameState: null,
+        settings: room.settings,
+      });
       io.to(room.code).emit("room:players", listPlayers(room));
     });
 
@@ -50,8 +58,37 @@ export function registerSocketHandlers(io) {
         player,
         players: listPlayers(room),
         gameState: buildGameState(room),
+        settings: room.settings,
       });
       io.to(room.code).emit("room:players", listPlayers(room));
+    });
+
+    socket.on("room:settings:update", ({ roundsPerPlayer, roundDurationMs } = {}) => {
+      const code = socket.data.roomCode;
+      const room = getRoom(code);
+      if (!room) return;
+      if (room.status !== "lobby") return; // settings are locked once a game starts
+
+      const player = room.players.get(socket.id);
+      if (!player?.isHost) return;
+
+      if (Number.isFinite(roundsPerPlayer)) {
+        room.settings.roundsPerPlayer = clamp(
+          Math.round(roundsPerPlayer),
+          MIN_ROUNDS_PER_PLAYER,
+          MAX_ROUNDS_PER_PLAYER
+        );
+      }
+
+      if (Number.isFinite(roundDurationMs)) {
+        room.settings.roundDurationMs = clamp(
+          Math.round(roundDurationMs),
+          MIN_ROUND_DURATION_MS,
+          MAX_ROUND_DURATION_MS
+        );
+      }
+
+      io.to(room.code).emit("room:settings", room.settings);
     });
 
     socket.on("game:start", () => {
@@ -65,7 +102,7 @@ export function registerSocketHandlers(io) {
 
       room.drawerOrder = shuffle(players.map((p) => p.id));
       room.turnNumber = 1;
-      room.totalTurns = room.drawerOrder.length * ROUNDS_PER_PLAYER;
+      room.totalTurns = room.drawerOrder.length * room.settings.roundsPerPlayer;
       room.round = 1;
       beginWordChoice(io, room, room.drawerOrder[0]);
     });
@@ -86,13 +123,13 @@ export function registerSocketHandlers(io) {
         round: room.round,
         drawerId: room.currentDrawerId,
         wordLength: word.length,
-        roundEndsAt: room.roundStartedAt + ROUND_DURATION_MS,
+        roundEndsAt: room.roundStartedAt + room.settings.roundDurationMs,
       });
 
       if (room.roundTimer) clearTimeout(room.roundTimer);
       room.roundTimer = setTimeout(() => {
         endRound(io, room, "timeout");
-      }, ROUND_DURATION_MS);
+      }, room.settings.roundDurationMs);
     });
 
     socket.on("drawing:stroke", (segment) => {
@@ -138,7 +175,7 @@ export function registerSocketHandlers(io) {
         room.correctGuessers.add(socket.id);
 
         const elapsed = Date.now() - (room.roundStartedAt ?? Date.now());
-        const timeFraction = Math.max(0, 1 - elapsed / ROUND_DURATION_MS);
+        const timeFraction = Math.max(0, 1 - elapsed / room.settings.roundDurationMs);
         const guesserPoints = Math.max(
           GUESSER_MIN_POINTS,
           Math.round(GUESSER_MAX_POINTS * timeFraction)
@@ -268,7 +305,7 @@ function endRound(io, room, reason) {
 }
 
 // Moves to the next drawer's turn, or ends the game once every player has
-// had their allotted number of turns (ROUNDS_PER_PLAYER).
+// had their allotted number of turns (room.settings.roundsPerPlayer).
 function advanceRound(io, room) {
   room.turnNumber += 1;
 
@@ -300,6 +337,10 @@ function shuffle(array) {
   return [...array].sort(() => Math.random() - 0.5);
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 // Summarizes in-progress game state so a (re)joining client can jump
 // straight to the right screen instead of always landing in the lobby.
 // Never includes the actual word — that stays private to the drawer.
@@ -311,6 +352,6 @@ function buildGameState(room) {
     round: room.round,
     drawerId: room.currentDrawerId,
     wordLength: room.currentWord ? room.currentWord.length : null,
-    roundEndsAt: room.roundStartedAt ? room.roundStartedAt + ROUND_DURATION_MS : null,
+    roundEndsAt: room.roundStartedAt ? room.roundStartedAt + room.settings.roundDurationMs : null,
   };
 }

@@ -32,8 +32,9 @@ to point at your machine's LAN IP instead of localhost.
 
 ## How it plays
 
-1. One player creates a room and shares the 5-letter code.
-2. Once 2+ players have joined, the host starts the game.
+1. One player creates a room and shares the 5-letter code (or an invite link).
+2. In the lobby, the host can tweak rounds-per-player and round length before
+   starting; once 2+ players have joined, the host starts the game.
 3. Each turn, the drawer picks 1 of 3 words and draws it on the canvas while
    everyone else guesses in the chat.
 4. Correct guesses award points based on speed; the drawer also earns points
@@ -41,6 +42,8 @@ to point at your machine's LAN IP instead of localhost.
 5. A round ends when everyone's guessed or the timer runs out, then rotates
    to the next drawer. After everyone's had their turn(s), the game ends with
    a final leaderboard.
+6. If someone's connection drops mid-game, refreshing and rejoining the same
+   room restores their score and place in the game.
 
 ## Status: playable MVP
 
@@ -55,16 +58,15 @@ All core gameplay loops are implemented and covered by integration tests in
 - [x] Round timer + auto-end (timeout or everyone-correct)
 - [x] Round rotation across all players, game-over screen
 - [x] Disconnect handling (drawer leaving mid-round, empty-room cleanup)
+- [x] Reconnect/resume support (refresh keeps your score and place in-game)
+- [x] Host-configurable rounds-per-player and round length, set pre-game
 
 ### Known limitations / ideas for next time
 
-- No reconnect/resume support — refreshing the page loses your session.
-- Word bank is a small placeholder list (`server/src/wordBank.js`) — easy to
-  swap in a bigger/funnier list.
 - No persistence — rooms are in-memory and die with the server process.
-- Drawing tools are a single fixed color/size — brush size & color picker
-  would be a fun next addition.
 - No mobile-specific touch polish beyond basic pointer events.
+- No sound/visual feedback for correct guesses or round end yet.
+- Reconnect grace period is fixed (`RECONNECT_GRACE_MS`) and not host-configurable.
 
 ## Testing
 

@@ -30,26 +30,38 @@ async function main() {
 
   const hostChoosing = new Promise((resolve) => host.once("round:choosing", resolve));
   const guestChoosing = new Promise((resolve) => guest.once("round:choosing", resolve));
-  const hostChoices = new Promise((resolve) => host.once("word:choices", resolve));
-  let guestGotChoices = false;
-  guest.once("word:choices", () => {
-    guestGotChoices = true;
-  });
-
-  // round:start should NOT fire yet, before the drawer picks.
-  let roundStartedEarly = false;
-  guest.once("round:start", () => {
-    roundStartedEarly = true;
-  });
+  const hostChoicesPromise = new Promise((resolve) => host.once("word:choices", resolve));
+  const guestChoicesPromise = new Promise((resolve) => guest.once("word:choices", resolve));
 
   host.emit("game:start");
 
-  const [, guestChoosingPayload] = await Promise.all([hostChoosing, guestChoosing]);
-  assert(guestChoosingPayload.drawerId === host.id, "round:choosing tells everyone who's drawing");
+  const [hostChoosingPayload, guestChoosingPayload] = await Promise.all([hostChoosing, guestChoosing]);
+  assert(
+    guestChoosingPayload.drawerId === hostChoosingPayload.drawerId,
+    "round:choosing tells everyone who's drawing"
+  );
 
-  const { choices } = await hostChoices;
+  // Drawer order is shuffled each game, so figure out which socket is
+  // actually drawing instead of assuming it's always the host.
+  const drawerId = hostChoosingPayload.drawerId;
+  const drawer = drawerId === host.id ? host : guest;
+  const nonDrawer = drawer === host ? guest : host;
+  const drawerChoicesPromise = drawer === host ? hostChoicesPromise : guestChoicesPromise;
+
+  // round:start should NOT fire yet, before the drawer picks.
+  let roundStartedEarly = false;
+  nonDrawer.once("round:start", () => {
+    roundStartedEarly = true;
+  });
+
+  let nonDrawerGotChoices = false;
+  nonDrawer.once("word:choices", () => {
+    nonDrawerGotChoices = true;
+  });
+
+  const { choices } = await drawerChoicesPromise;
   assert(Array.isArray(choices) && choices.length === 3, "drawer receives exactly 3 word choices");
-  assert(!guestGotChoices, "non-drawer did NOT receive word choices");
+  assert(!nonDrawerGotChoices, "non-drawer did NOT receive word choices");
 
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert(!roundStartedEarly, "round:start has not fired before the drawer chooses");
@@ -58,18 +70,18 @@ async function main() {
   const guestRoundStart = new Promise((resolve) => guest.once("round:start", resolve));
 
   const chosenWord = choices[0];
-  host.emit("word:choose", { word: chosenWord });
+  drawer.emit("word:choose", { word: chosenWord });
 
   const [hostPayload, guestPayload] = await Promise.all([hostRoundStart, guestRoundStart]);
   assert(hostPayload.wordLength === chosenWord.length, "round:start wordLength matches chosen word");
-  assert(guestPayload.drawerId === host.id, "guest sees the correct drawer in round:start");
+  assert(guestPayload.drawerId === drawerId, "guest sees the correct drawer in round:start");
 
   // An invalid choice should be ignored; try choosing again with a bogus word.
   let secondRoundStartFired = false;
-  host.once("round:start", () => {
+  drawer.once("round:start", () => {
     secondRoundStartFired = true;
   });
-  host.emit("word:choose", { word: "not-a-real-choice" });
+  drawer.emit("word:choose", { word: "not-a-real-choice" });
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert(!secondRoundStartFired, "invalid/late word:choose is ignored (room already playing)");
 
