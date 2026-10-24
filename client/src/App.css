@@ -17,6 +17,26 @@
   padding: 8px;
 }
 
+.error {
+  color: #c0392b;
+}
+
+.lobby {
+  max-width: 480px;
+  margin: 80px auto;
+  text-align: center;
+}
+
+.player-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.player-list li {
+  padding: 4px 0;
+}
+
 .game {
   max-width: 1000px;
   margin: 24px auto;

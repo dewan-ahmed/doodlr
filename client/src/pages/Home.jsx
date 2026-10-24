@@ -1,21 +1,47 @@
 import { useState } from "react";
+import { socket } from "../socket.js";
 
-// Join / create room screen. Wires up to room:create and room:join once we
-// build out the socket logic together — for now it's a plain form shell.
+// Join / create room screen.
 export default function Home({ onJoined }) {
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState("");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  function ensureConnected() {
+    if (!socket.connected) {
+      socket.connect();
+    }
+  }
 
   function handleCreate(e) {
     e.preventDefault();
-    // TODO: socket.emit('room:create', { name }, callback)
-    console.log("create room", { name });
+    setError("");
+    setPending(true);
+    ensureConnected();
+    socket.emit("room:create", { name }, (res) => {
+      setPending(false);
+      if (res?.error) {
+        setError(res.error);
+        return;
+      }
+      onJoined(res);
+    });
   }
 
   function handleJoin(e) {
     e.preventDefault();
-    // TODO: socket.emit('room:join', { code: roomCode, name }, callback)
-    console.log("join room", { name, roomCode });
+    setError("");
+    setPending(true);
+    ensureConnected();
+    socket.emit("room:join", { code: roomCode, name }, (res) => {
+      setPending(false);
+      if (res?.error) {
+        setError(res.error);
+        return;
+      }
+      onJoined(res);
+    });
   }
 
   return (
@@ -32,7 +58,7 @@ export default function Home({ onJoined }) {
       </label>
 
       <form onSubmit={handleCreate}>
-        <button type="submit" disabled={!name}>
+        <button type="submit" disabled={!name || pending}>
           Create new room
         </button>
       </form>
@@ -44,10 +70,12 @@ export default function Home({ onJoined }) {
           placeholder="Room code"
           maxLength={5}
         />
-        <button type="submit" disabled={!name || !roomCode}>
+        <button type="submit" disabled={!name || !roomCode || pending}>
           Join room
         </button>
       </form>
+
+      {error && <p className="error">{error}</p>}
     </div>
   );
 }

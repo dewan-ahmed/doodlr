@@ -7,6 +7,7 @@ import {
   listPlayers,
   removePlayer,
 } from "./rooms.js";
+import { getRandomWords } from "./wordBank.js";
 
 // Socket.io event skeleton. Game-specific events (drawing strokes, guesses,
 // scoring, round timer, etc.) get added here as we build them out.
@@ -40,7 +41,20 @@ export function registerSocketHandlers(io) {
       io.to(room.code).emit("room:players", listPlayers(room));
     });
 
-    // TODO: drawing:stroke, drawing:clear, guess:submit, round:start, round:end, game:start, game:over
+    socket.on("game:start", () => {
+      const code = socket.data.roomCode;
+      const room = getRoom(code);
+      if (!room) return;
+
+      const players = listPlayers(room);
+      if (players.length < 2) return;
+
+      room.status = "playing";
+      room.round = 1;
+      startRound(io, room, players[0].id);
+    });
+
+    // TODO: drawing:stroke, drawing:clear, guess:submit, round:end, game:over
 
     socket.on("disconnect", () => {
       const code = socket.data.roomCode;
@@ -60,4 +74,21 @@ export function registerSocketHandlers(io) {
       console.log(`[disconnect] ${socket.id} (room ${code})`);
     });
   });
+}
+
+// Minimal round-start: auto-assigns a random word to the drawer and tells
+// everyone else who's drawing. Word-choice UI (pick 1 of 3) lands in a later
+// chunk — this just gets the lobby -> game transition working end to end.
+function startRound(io, room, drawerId) {
+  room.currentDrawerId = drawerId;
+  const [{ word }] = getRandomWords(1);
+  room.currentWord = word;
+
+  io.to(room.code).emit("round:start", {
+    round: room.round,
+    drawerId,
+    wordLength: word.length,
+  });
+
+  io.to(drawerId).emit("word:assigned", { word });
 }

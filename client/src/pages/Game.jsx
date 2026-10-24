@@ -2,8 +2,10 @@ import { useEffect, useRef } from "react";
 
 // Main game screen shell: canvas (drawing surface) + sidebar (players/chat).
 // Drawing sync, guessing, scoring, and round/timer logic get wired in next.
-export default function Game({ room, player }) {
+export default function Game({ room, player, players, round, myWord }) {
   const canvasRef = useRef(null);
+  const isDrawer = round?.drawerId === player?.id;
+  const drawerName = players?.find((p) => p.id === round?.drawerId)?.name;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -19,7 +21,13 @@ export default function Game({ room, player }) {
     <div className="game">
       <header>
         <span>Room: {room}</span>
-        <span>Word: _ _ _ _</span>
+        <span>
+          {isDrawer
+            ? `Your word: ${myWord ?? "..."}`
+            : `${drawerName ?? "Someone"} is drawing — ${"_ ".repeat(
+                round?.wordLength ?? 0
+              )}`}
+        </span>
         <span>Time: --</span>
       </header>
 
