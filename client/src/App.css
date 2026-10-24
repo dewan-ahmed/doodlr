@@ -108,6 +108,19 @@
   min-height: 120px;
 }
 
+.leaderboard {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.leaderboard li {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-size: 14px;
+}
+
 .chat {
   overflow-y: auto;
   display: flex;

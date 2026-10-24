@@ -147,7 +147,22 @@ export default function Game({ room, player, players, round, myWord }) {
         </div>
 
         <aside className="sidebar">
-          <div className="players">{/* TODO: player list + scores */}</div>
+          <div className="players">
+            <ul className="leaderboard">
+              {[...(players ?? [])]
+                .sort((a, b) => b.score - a.score)
+                .map((p) => (
+                  <li key={p.id}>
+                    <span>
+                      {p.name}
+                      {p.id === round?.drawerId ? " ✏️" : ""}
+                      {p.id === player?.id ? " (you)" : ""}
+                    </span>
+                    <strong>{p.score}</strong>
+                  </li>
+                ))}
+            </ul>
+          </div>
 
           <div className="chat">
             {messages.map((m) => (

@@ -8,6 +8,12 @@ import {
   removePlayer,
 } from "./rooms.js";
 import { getRandomWords } from "./wordBank.js";
+import {
+  DRAWER_POINTS_PER_CORRECT_GUESS,
+  GUESSER_MAX_POINTS,
+  GUESSER_MIN_POINTS,
+  ROUND_DURATION_MS,
+} from "./constants.js";
 
 // Socket.io event skeleton. Game-specific events (drawing strokes, guesses,
 // scoring, round timer, etc.) get added here as we build them out.
@@ -63,6 +69,7 @@ export function registerSocketHandlers(io) {
 
       room.currentWord = word;
       room.status = "playing";
+      room.roundStartedAt = Date.now();
 
       io.to(room.code).emit("round:start", {
         round: room.round,
@@ -113,15 +120,30 @@ export function registerSocketHandlers(io) {
       if (isCorrect) {
         room.correctGuessers.add(socket.id);
 
+        const elapsed = Date.now() - (room.roundStartedAt ?? Date.now());
+        const timeFraction = Math.max(0, 1 - elapsed / ROUND_DURATION_MS);
+        const guesserPoints = Math.max(
+          GUESSER_MIN_POINTS,
+          Math.round(GUESSER_MAX_POINTS * timeFraction)
+        );
+        player.score += guesserPoints;
+
+        const drawer = room.players.get(room.currentDrawerId);
+        if (drawer) {
+          drawer.score += DRAWER_POINTS_PER_CORRECT_GUESS;
+        }
+
         socket.emit("chat:message", {
           type: "correct-self",
-          text: `You guessed it! The word was "${room.currentWord}".`,
+          text: `You guessed it! +${guesserPoints} points. The word was "${room.currentWord}".`,
         });
 
         socket.to(room.code).emit("chat:message", {
           type: "correct-other",
-          text: `${player.name} guessed the word!`,
+          text: `${player.name} guessed the word! (+${guesserPoints})`,
         });
+
+        io.to(room.code).emit("room:players", listPlayers(room));
       } else {
         io.to(room.code).emit("chat:message", {
           type: "guess",
