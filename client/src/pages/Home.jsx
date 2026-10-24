@@ -1,12 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { socket } from "../socket.js";
+
+function getRoomCodeFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const room = params.get("room");
+  return room ? room.toUpperCase() : "";
+}
 
 // Join / create room screen.
 export default function Home({ onJoined }) {
   const [name, setName] = useState("");
-  const [roomCode, setRoomCode] = useState("");
+  const [roomCode, setRoomCode] = useState(getRoomCodeFromUrl());
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+
+  // If someone opens an invite link (?room=CODE), the join form comes
+  // pre-filled so they just need to type their name and hit Join.
+  useEffect(() => {
+    const prefilled = getRoomCodeFromUrl();
+    if (prefilled) setRoomCode(prefilled);
+  }, []);
 
   function ensureConnected() {
     if (!socket.connected) {
