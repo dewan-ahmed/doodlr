@@ -1,11 +1,6 @@
 import { useEffect, useState } from "react";
 import { socket } from "../socket.js";
-
-function getRoomCodeFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const room = params.get("room");
-  return room ? room.toUpperCase() : "";
-}
+import { getClientId, getRoomCodeFromUrl } from "../session.js";
 
 // Join / create room screen.
 export default function Home({ onJoined }) {
@@ -32,7 +27,7 @@ export default function Home({ onJoined }) {
     setError("");
     setPending(true);
     ensureConnected();
-    socket.emit("room:create", { name }, (res) => {
+    socket.emit("room:create", { name, clientId: getClientId() }, (res) => {
       setPending(false);
       if (res?.error) {
         setError(res.error);
@@ -47,7 +42,7 @@ export default function Home({ onJoined }) {
     setError("");
     setPending(true);
     ensureConnected();
-    socket.emit("room:join", { code: roomCode, name }, (res) => {
+    socket.emit("room:join", { code: roomCode, name, clientId: getClientId() }, (res) => {
       setPending(false);
       if (res?.error) {
         setError(res.error);

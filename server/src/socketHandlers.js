@@ -23,29 +23,34 @@ export function registerSocketHandlers(io) {
   io.on("connection", (socket) => {
     console.log(`[connect] ${socket.id}`);
 
-    socket.on("room:create", ({ name }, callback) => {
+    socket.on("room:create", ({ name, clientId }, callback) => {
       const room = createRoom();
-      const player = addPlayer(room, socket.id, name);
+      const player = addPlayer(room, socket.id, name, clientId);
 
       socket.join(room.code);
       socket.data.roomCode = room.code;
 
-      callback?.({ room: room.code, player, players: listPlayers(room) });
+      callback?.({ room: room.code, player, players: listPlayers(room), gameState: null });
       io.to(room.code).emit("room:players", listPlayers(room));
     });
 
-    socket.on("room:join", ({ code, name }, callback) => {
+    socket.on("room:join", ({ code, name, clientId }, callback) => {
       const room = getRoom(code?.toUpperCase());
       if (!room) {
         callback?.({ error: "Room not found" });
         return;
       }
 
-      const player = addPlayer(room, socket.id, name);
+      const player = addPlayer(room, socket.id, name, clientId);
       socket.join(room.code);
       socket.data.roomCode = room.code;
 
-      callback?.({ room: room.code, player, players: listPlayers(room) });
+      callback?.({
+        room: room.code,
+        player,
+        players: listPlayers(room),
+        gameState: buildGameState(room),
+      });
       io.to(room.code).emit("room:players", listPlayers(room));
     });
 
@@ -293,4 +298,19 @@ function endGame(io, room) {
 
 function shuffle(array) {
   return [...array].sort(() => Math.random() - 0.5);
+}
+
+// Summarizes in-progress game state so a (re)joining client can jump
+// straight to the right screen instead of always landing in the lobby.
+// Never includes the actual word — that stays private to the drawer.
+function buildGameState(room) {
+  if (room.status === "lobby") return null;
+
+  return {
+    status: room.status,
+    round: room.round,
+    drawerId: room.currentDrawerId,
+    wordLength: room.currentWord ? room.currentWord.length : null,
+    roundEndsAt: room.roundStartedAt ? room.roundStartedAt + ROUND_DURATION_MS : null,
+  };
 }
