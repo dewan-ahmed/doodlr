@@ -108,6 +108,28 @@
   min-height: 120px;
 }
 
+.chat {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.chat-message {
+  padding: 2px 0;
+}
+
+.chat-correct-self {
+  color: #1a7a1a;
+  font-weight: 600;
+}
+
+.chat-correct-other {
+  color: #555;
+  font-style: italic;
+}
+
 .guess-form input {
   width: 100%;
   padding: 8px;

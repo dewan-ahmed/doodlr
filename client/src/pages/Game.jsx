@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { socket } from "../socket.js";
 import { clearCanvas, drawSegment, getRelativePoint } from "../drawing.js";
 
@@ -10,6 +10,10 @@ export default function Game({ room, player, players, round, myWord }) {
   const ctxRef = useRef(null);
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef(null);
+
+  const [messages, setMessages] = useState([]);
+  const [guessText, setGuessText] = useState("");
+  const [hasGuessedCorrectly, setHasGuessedCorrectly] = useState(false);
 
   const isDrawer = round?.drawerId === player?.id;
   const drawerName = players?.find((p) => p.id === round?.drawerId)?.name;
@@ -23,13 +27,27 @@ export default function Game({ room, player, players, round, myWord }) {
     clearCanvas(ctx, canvas);
   }, []);
 
-  // Clear the board at the start of every new round.
+  // Clear the board + reset per-round guess state at the start of every new round.
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = ctxRef.current;
     if (!canvas || !ctx) return;
     clearCanvas(ctx, canvas);
+    setHasGuessedCorrectly(false);
   }, [round?.round]);
+
+  // Chat / guess messages.
+  useEffect(() => {
+    function handleChatMessage(message) {
+      setMessages((prev) => [...prev, { ...message, id: `${Date.now()}-${Math.random()}` }]);
+      if (message.type === "correct-self") {
+        setHasGuessedCorrectly(true);
+      }
+    }
+
+    socket.on("chat:message", handleChatMessage);
+    return () => socket.off("chat:message", handleChatMessage);
+  }, []);
 
   // Render strokes broadcast by the drawer.
   useEffect(() => {
@@ -84,6 +102,16 @@ export default function Game({ room, player, players, round, myWord }) {
     socket.emit("drawing:clear");
   }
 
+  function handleGuessSubmit(e) {
+    e.preventDefault();
+    const text = guessText.trim();
+    if (!text) return;
+    socket.emit("guess:submit", { text });
+    setGuessText("");
+  }
+
+  const canGuess = !isDrawer && !hasGuessedCorrectly;
+
   return (
     <div className="game">
       <header>
@@ -120,9 +148,34 @@ export default function Game({ room, player, players, round, myWord }) {
 
         <aside className="sidebar">
           <div className="players">{/* TODO: player list + scores */}</div>
-          <div className="chat">{/* TODO: guesses / system messages */}</div>
-          <form className="guess-form">
-            <input placeholder="Type your guess..." disabled />
+
+          <div className="chat">
+            {messages.map((m) => (
+              <div key={m.id} className={`chat-message chat-${m.type}`}>
+                {m.type === "guess" ? (
+                  <>
+                    <strong>{m.name}:</strong> {m.text}
+                  </>
+                ) : (
+                  m.text
+                )}
+              </div>
+            ))}
+          </div>
+
+          <form className="guess-form" onSubmit={handleGuessSubmit}>
+            <input
+              value={guessText}
+              onChange={(e) => setGuessText(e.target.value)}
+              placeholder={
+                isDrawer
+                  ? "You're drawing — no guessing!"
+                  : hasGuessedCorrectly
+                  ? "You already got it!"
+                  : "Type your guess..."
+              }
+              disabled={!canGuess}
+            />
           </form>
         </aside>
       </div>

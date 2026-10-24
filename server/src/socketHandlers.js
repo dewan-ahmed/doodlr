@@ -94,7 +94,45 @@ export function registerSocketHandlers(io) {
       socket.to(room.code).emit("drawing:clear");
     });
 
-    // TODO: guess:submit, round:end, game:over
+    socket.on("guess:submit", ({ text } = {}) => {
+      const code = socket.data.roomCode;
+      const room = getRoom(code);
+      if (!room) return;
+      if (room.status !== "playing") return;
+      if (socket.id === room.currentDrawerId) return; // drawer can't guess
+      if (room.correctGuessers.has(socket.id)) return; // no spamming after a correct guess
+
+      const player = room.players.get(socket.id);
+      if (!player) return;
+
+      const guess = typeof text === "string" ? text.trim() : "";
+      if (!guess) return;
+
+      const isCorrect = guess.toLowerCase() === room.currentWord?.toLowerCase();
+
+      if (isCorrect) {
+        room.correctGuessers.add(socket.id);
+
+        socket.emit("chat:message", {
+          type: "correct-self",
+          text: `You guessed it! The word was "${room.currentWord}".`,
+        });
+
+        socket.to(room.code).emit("chat:message", {
+          type: "correct-other",
+          text: `${player.name} guessed the word!`,
+        });
+      } else {
+        io.to(room.code).emit("chat:message", {
+          type: "guess",
+          playerId: socket.id,
+          name: player.name,
+          text: guess,
+        });
+      }
+    });
+
+    // TODO: round:end, game:over
 
     socket.on("disconnect", () => {
       const code = socket.data.roomCode;
@@ -122,6 +160,7 @@ function beginWordChoice(io, room, drawerId) {
   room.status = "choosing";
   room.currentDrawerId = drawerId;
   room.currentWord = null;
+  room.correctGuessers = new Set();
   const choices = getRandomWords(3).map((w) => w.word);
   room.wordChoices = choices;
 

@@ -25,6 +25,8 @@ export function createRoom() {
     status: "lobby",
     currentDrawerId: null,
     currentWord: null,
+    wordChoices: null,
+    correctGuessers: new Set(),
     round: 0,
     createdAt: Date.now(),
   };
