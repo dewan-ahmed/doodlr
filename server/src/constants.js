@@ -10,3 +10,7 @@ export const ROUNDS_PER_PLAYER = Number(process.env.ROUNDS_PER_PLAYER) || 2;
 // Pause between a round ending (reveal word / show results) and the next
 // round starting, so players have time to read what happened.
 export const ROUND_END_DELAY_MS = Number(process.env.ROUND_END_DELAY_MS) || 4_000;
+
+// How long a disconnected player's score/identity is remembered so a page
+// refresh (same clientId) can rejoin without losing progress.
+export const RECONNECT_GRACE_MS = Number(process.env.RECONNECT_GRACE_MS) || 2 * 60_000;

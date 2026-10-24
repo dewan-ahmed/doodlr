@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { RECONNECT_GRACE_MS } from "./constants.js";
 
 // In-memory room store. No DB — rooms are ephemeral per server process.
 // roomCode -> Room
@@ -35,6 +36,9 @@ export function createRoom() {
     turnNumber: 0,
     totalTurns: 0,
     createdAt: Date.now(),
+    // clientId -> { name, score, disconnectedAt } — lets a refreshing
+    // player resume with their score intact within RECONNECT_GRACE_MS.
+    disconnectedPlayers: new Map(),
   };
   rooms.set(code, room);
   return room;
@@ -48,14 +52,35 @@ export function deleteRoom(code) {
   rooms.delete(code);
 }
 
-export function addPlayer(room, socketId, name) {
+export function addPlayer(room, socketId, name, clientId = null) {
   const isHost = room.players.size === 0;
-  const player = { id: socketId, name, score: 0, isHost };
+
+  let score = 0;
+  let reconnected = false;
+  if (clientId && room.disconnectedPlayers.has(clientId)) {
+    const saved = room.disconnectedPlayers.get(clientId);
+    room.disconnectedPlayers.delete(clientId);
+    if (Date.now() - saved.disconnectedAt <= RECONNECT_GRACE_MS) {
+      score = saved.score;
+      reconnected = true;
+    }
+  }
+
+  const player = { id: socketId, name, score, isHost, clientId, reconnected };
   room.players.set(socketId, player);
   return player;
 }
 
 export function removePlayer(room, socketId) {
+  const player = room.players.get(socketId);
+  if (player?.clientId) {
+    room.disconnectedPlayers.set(player.clientId, {
+      name: player.name,
+      score: player.score,
+      disconnectedAt: Date.now(),
+    });
+  }
+
   room.players.delete(socketId);
   // If the host left, promote the next player (if any).
   if (room.players.size > 0) {
@@ -67,8 +92,15 @@ export function removePlayer(room, socketId) {
   }
 }
 
+// Never broadcast clientId — it's the secret that lets a refresh resume a
+// player's score, so it must stay private to that player's own socket.
 export function listPlayers(room) {
-  return [...room.players.values()];
+  return [...room.players.values()].map(({ id, name, score, isHost }) => ({
+    id,
+    name,
+    score,
+    isHost,
+  }));
 }
 
 export function isRoomEmpty(room) {
