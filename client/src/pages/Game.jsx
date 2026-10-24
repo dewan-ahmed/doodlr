@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { socket } from "../socket.js";
 import { clearCanvas, drawSegment, getRelativePoint } from "../drawing.js";
+import { isMuted, playOtherCorrectGuess, playOwnCorrectGuess, playRoundEnd, setMuted } from "../sound.js";
 
 const COLOR_PALETTE = [
   "#1a1a1a", // black
@@ -34,6 +35,11 @@ export default function Game({ room, player, players, round, myWord, roundEnd })
   const [secondsLeft, setSecondsLeft] = useState(null);
   const [strokeColor, setStrokeColor] = useState(DEFAULT_COLOR);
   const [strokeSize, setStrokeSize] = useState(DEFAULT_SIZE);
+  const [muted, setMutedState] = useState(() => isMuted());
+  // Transient feedback shown when someone guesses correctly: a floating
+  // "+N" badge, and which player's leaderboard row to flash.
+  const [pointsPopup, setPointsPopup] = useState(null); // { key, points, mine }
+  const [celebratingPlayerId, setCelebratingPlayerId] = useState(null);
 
   const isDrawer = round?.drawerId === player?.id;
   const drawerName = players?.find((p) => p.id === round?.drawerId)?.name;
@@ -78,14 +84,41 @@ export default function Game({ room, player, players, round, myWord, roundEnd })
   useEffect(() => {
     function handleChatMessage(message) {
       setMessages((prev) => [...prev, { ...message, id: `${Date.now()}-${Math.random()}` }]);
+
       if (message.type === "correct-self") {
         setHasGuessedCorrectly(true);
+        playOwnCorrectGuess();
+        setPointsPopup({ key: `${Date.now()}-self`, points: message.points, mine: true });
+        setCelebratingPlayerId(player?.id ?? null);
+      } else if (message.type === "correct-other") {
+        playOtherCorrectGuess();
+        setPointsPopup({ key: `${Date.now()}-other`, points: message.points, mine: false });
+        setCelebratingPlayerId(message.playerId ?? null);
       }
     }
 
     socket.on("chat:message", handleChatMessage);
     return () => socket.off("chat:message", handleChatMessage);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player?.id]);
+
+  // Clear the transient "+N" popup and leaderboard flash shortly after they fire.
+  useEffect(() => {
+    if (!pointsPopup) return;
+    const timer = setTimeout(() => setPointsPopup(null), 1400);
+    return () => clearTimeout(timer);
+  }, [pointsPopup]);
+
+  useEffect(() => {
+    if (!celebratingPlayerId) return;
+    const timer = setTimeout(() => setCelebratingPlayerId(null), 1400);
+    return () => clearTimeout(timer);
+  }, [celebratingPlayerId]);
+
+  // Play a cue whenever a round ends (timeout, drawer left, or everyone got it).
+  useEffect(() => {
+    if (roundEnd) playRoundEnd();
+  }, [roundEnd]);
 
   // Render strokes broadcast by the drawer.
   useEffect(() => {
@@ -150,8 +183,20 @@ export default function Game({ room, player, players, round, myWord, roundEnd })
 
   const canGuess = !isDrawer && !hasGuessedCorrectly && !roundEnd;
 
+  function handleToggleMute() {
+    const next = !muted;
+    setMuted(next);
+    setMutedState(next);
+  }
+
   return (
     <div className="game">
+      {pointsPopup && (
+        <div className={`points-popup${pointsPopup.mine ? " mine" : ""}`} key={pointsPopup.key}>
+          +{pointsPopup.points}
+        </div>
+      )}
+
       <header>
         <span>Room: {room}</span>
         <span>
@@ -162,6 +207,15 @@ export default function Game({ room, player, players, round, myWord, roundEnd })
               )}`}
         </span>
         <span>Time: {secondsLeft ?? "--"}</span>
+        <button
+          type="button"
+          className="mute-btn"
+          onClick={handleToggleMute}
+          aria-label={muted ? "Unmute sounds" : "Mute sounds"}
+          title={muted ? "Unmute sounds" : "Mute sounds"}
+        >
+          {muted ? "🔇" : "🔊"}
+        </button>
       </header>
 
       {roundEnd && (
@@ -230,7 +284,7 @@ export default function Game({ room, player, players, round, myWord, roundEnd })
               {[...(players ?? [])]
                 .sort((a, b) => b.score - a.score)
                 .map((p) => (
-                  <li key={p.id}>
+                  <li key={p.id} className={p.id === celebratingPlayerId ? "celebrating" : ""}>
                     <span>
                       {p.name}
                       {p.id === round?.drawerId ? " ✏️" : ""}

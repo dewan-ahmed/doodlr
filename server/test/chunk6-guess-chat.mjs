@@ -28,58 +28,66 @@ async function setupPlayingRoom() {
     guest.emit("room:join", { code: createRes.room, name: "Bob" }, resolve)
   );
 
-  const hostChoices = new Promise((resolve) => host.once("word:choices", resolve));
+  // Drawer order is shuffled each game, so figure out who's actually
+  // drawing instead of assuming it's always the host.
+  const hostChoosing = new Promise((resolve) => host.once("round:choosing", resolve));
+  const hostChoicesPromise = new Promise((resolve) => host.once("word:choices", resolve));
+  const guestChoicesPromise = new Promise((resolve) => guest.once("word:choices", resolve));
   host.emit("game:start");
-  const { choices } = await hostChoices;
 
-  const hostRoundStart = new Promise((resolve) => host.once("round:start", resolve));
-  host.emit("word:choose", { word: choices[0] });
-  await hostRoundStart;
+  const { drawerId } = await hostChoosing;
+  const drawer = drawerId === host.id ? host : guest;
+  const guesser = drawer === host ? guest : host;
+  const { choices } = await (drawer === host ? hostChoicesPromise : guestChoicesPromise);
 
-  return { host, guest, word: choices[0] };
+  const roundStart = new Promise((resolve) => drawer.once("round:start", resolve));
+  drawer.emit("word:choose", { word: choices[0] });
+  await roundStart;
+
+  return { drawer, guesser, word: choices[0] };
 }
 
 async function main() {
-  const { host, guest, word } = await setupPlayingRoom();
+  const { drawer, guesser, word } = await setupPlayingRoom();
 
-  // Wrong guess from guest should broadcast as a "guess" chat message to everyone.
-  const hostSeesWrongGuess = new Promise((resolve) => host.once("chat:message", resolve));
-  const guestSeesOwnWrongGuess = new Promise((resolve) => guest.once("chat:message", resolve));
-  guest.emit("guess:submit", { text: "definitely-wrong" });
+  // Wrong guess from guesser should broadcast as a "guess" chat message to everyone.
+  const drawerSeesWrongGuess = new Promise((resolve) => drawer.once("chat:message", resolve));
+  const guesserSeesOwnWrongGuess = new Promise((resolve) => guesser.once("chat:message", resolve));
+  guesser.emit("guess:submit", { text: "definitely-wrong" });
 
-  const [hostMsg, guestMsg] = await Promise.all([hostSeesWrongGuess, guestSeesOwnWrongGuess]);
-  assert(hostMsg.type === "guess" && hostMsg.text === "definitely-wrong", "wrong guess broadcast to drawer as chat");
-  assert(guestMsg.type === "guess" && guestMsg.name === "Bob", "wrong guess echoed back to guesser too, with their name");
+  const [drawerMsg, guesserMsg] = await Promise.all([drawerSeesWrongGuess, guesserSeesOwnWrongGuess]);
+  assert(drawerMsg.type === "guess" && drawerMsg.text === "definitely-wrong", "wrong guess broadcast to drawer as chat");
+  assert(guesserMsg.type === "guess" && guesserMsg.playerId === guesser.id, "wrong guess echoed back to guesser too, with their id");
 
   // Drawer attempting to guess should be ignored entirely.
-  let hostGotOwnGuessEcho = false;
-  host.once("chat:message", () => {
-    hostGotOwnGuessEcho = true;
+  let drawerGotOwnGuessEcho = false;
+  drawer.once("chat:message", () => {
+    drawerGotOwnGuessEcho = true;
   });
-  host.emit("guess:submit", { text: word });
+  drawer.emit("guess:submit", { text: word });
   await new Promise((resolve) => setTimeout(resolve, 150));
-  assert(!hostGotOwnGuessEcho, "drawer's own guess attempt is ignored (no chat message)");
+  assert(!drawerGotOwnGuessEcho, "drawer's own guess attempt is ignored (no chat message)");
 
   // Correct guess: guesser gets a private reveal, everyone else gets a vague "guessed it" message.
-  const guestCorrect = new Promise((resolve) => guest.once("chat:message", resolve));
-  const hostSeesCorrectOther = new Promise((resolve) => host.once("chat:message", resolve));
-  guest.emit("guess:submit", { text: word.toUpperCase() }); // case-insensitive match
+  const guesserCorrect = new Promise((resolve) => guesser.once("chat:message", resolve));
+  const drawerSeesCorrectOther = new Promise((resolve) => drawer.once("chat:message", resolve));
+  guesser.emit("guess:submit", { text: word.toUpperCase() }); // case-insensitive match
 
-  const [guestMsg2, hostMsg2] = await Promise.all([guestCorrect, hostSeesCorrectOther]);
-  assert(guestMsg2.type === "correct-self" && guestMsg2.text.includes(word), "correct guesser gets private reveal with the word");
-  assert(hostMsg2.type === "correct-other" && !hostMsg2.text.includes(word), "everyone else sees a vague 'guessed it' message without the word");
+  const [guesserMsg2, drawerMsg2] = await Promise.all([guesserCorrect, drawerSeesCorrectOther]);
+  assert(guesserMsg2.type === "correct-self" && guesserMsg2.text.includes(word), "correct guesser gets private reveal with the word");
+  assert(drawerMsg2.type === "correct-other" && !drawerMsg2.text.includes(word), "everyone else sees a vague 'guessed it' message without the word");
 
   // Guessing again after already correct should be ignored (no spam).
-  let guestGotAnotherMessage = false;
-  guest.once("chat:message", () => {
-    guestGotAnotherMessage = true;
+  let guesserGotAnotherMessage = false;
+  guesser.once("chat:message", () => {
+    guesserGotAnotherMessage = true;
   });
-  guest.emit("guess:submit", { text: word });
+  guesser.emit("guess:submit", { text: word });
   await new Promise((resolve) => setTimeout(resolve, 150));
-  assert(!guestGotAnotherMessage, "already-correct guesser can't guess again");
+  assert(!guesserGotAnotherMessage, "already-correct guesser can't guess again");
 
-  host.close();
-  guest.close();
+  drawer.close();
+  guesser.close();
 
   console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
   process.exit(failures === 0 ? 0 : 1);

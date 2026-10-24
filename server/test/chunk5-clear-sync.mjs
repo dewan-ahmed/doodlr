@@ -28,43 +28,51 @@ async function setupPlayingRoom() {
     guest.emit("room:join", { code: createRes.room, name: "Bob" }, resolve)
   );
 
-  const hostChoices = new Promise((resolve) => host.once("word:choices", resolve));
+  // Drawer order is shuffled each game, so figure out who's actually
+  // drawing instead of assuming it's always the host.
+  const hostChoosing = new Promise((resolve) => host.once("round:choosing", resolve));
+  const hostChoicesPromise = new Promise((resolve) => host.once("word:choices", resolve));
+  const guestChoicesPromise = new Promise((resolve) => guest.once("word:choices", resolve));
   host.emit("game:start");
-  const { choices } = await hostChoices;
 
-  const hostRoundStart = new Promise((resolve) => host.once("round:start", resolve));
-  host.emit("word:choose", { word: choices[0] });
-  await hostRoundStart;
+  const { drawerId } = await hostChoosing;
+  const drawer = drawerId === host.id ? host : guest;
+  const nonDrawer = drawer === host ? guest : host;
+  const { choices } = await (drawer === host ? hostChoicesPromise : guestChoicesPromise);
 
-  return { host, guest };
+  const roundStart = new Promise((resolve) => drawer.once("round:start", resolve));
+  drawer.emit("word:choose", { word: choices[0] });
+  await roundStart;
+
+  return { drawer, nonDrawer };
 }
 
 async function main() {
-  const { host, guest } = await setupPlayingRoom();
+  const { drawer, nonDrawer } = await setupPlayingRoom();
 
-  const guestCleared = new Promise((resolve) => guest.once("drawing:clear", resolve));
-  let hostEchoed = false;
-  host.once("drawing:clear", () => {
-    hostEchoed = true;
+  const nonDrawerCleared = new Promise((resolve) => nonDrawer.once("drawing:clear", resolve));
+  let drawerEchoed = false;
+  drawer.once("drawing:clear", () => {
+    drawerEchoed = true;
   });
 
-  host.emit("drawing:clear");
-  await guestCleared;
-  assert(true, "guest receives drawing:clear from the drawer");
+  drawer.emit("drawing:clear");
+  await nonDrawerCleared;
+  assert(true, "non-drawer receives drawing:clear from the drawer");
 
   await new Promise((resolve) => setTimeout(resolve, 100));
-  assert(!hostEchoed, "drawer does not receive its own clear event back");
+  assert(!drawerEchoed, "drawer does not receive its own clear event back");
 
-  let hostGotBogusClear = false;
-  host.once("drawing:clear", () => {
-    hostGotBogusClear = true;
+  let drawerGotBogusClear = false;
+  drawer.once("drawing:clear", () => {
+    drawerGotBogusClear = true;
   });
-  guest.emit("drawing:clear");
+  nonDrawer.emit("drawing:clear");
   await new Promise((resolve) => setTimeout(resolve, 150));
-  assert(!hostGotBogusClear, "non-drawer's clear request is ignored by the server");
+  assert(!drawerGotBogusClear, "non-drawer's clear request is ignored by the server");
 
-  host.close();
-  guest.close();
+  drawer.close();
+  nonDrawer.close();
 
   console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
   process.exit(failures === 0 ? 0 : 1);
