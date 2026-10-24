@@ -14,3 +14,9 @@ export const ROUND_END_DELAY_MS = Number(process.env.ROUND_END_DELAY_MS) || 4_00
 // How long a disconnected player's score/identity is remembered so a page
 // refresh (same clientId) can rejoin without losing progress.
 export const RECONNECT_GRACE_MS = Number(process.env.RECONNECT_GRACE_MS) || 2 * 60_000;
+
+// Bounds for host-configurable per-room settings (see room:settings:update).
+export const MIN_ROUNDS_PER_PLAYER = 1;
+export const MAX_ROUNDS_PER_PLAYER = 5;
+export const MIN_ROUND_DURATION_MS = 30_000;
+export const MAX_ROUND_DURATION_MS = 180_000;

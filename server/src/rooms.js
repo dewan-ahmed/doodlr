@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { RECONNECT_GRACE_MS } from "./constants.js";
+import { RECONNECT_GRACE_MS, ROUNDS_PER_PLAYER, ROUND_DURATION_MS } from "./constants.js";
 
 // In-memory room store. No DB — rooms are ephemeral per server process.
 // roomCode -> Room
@@ -39,6 +39,11 @@ export function createRoom() {
     // clientId -> { name, score, disconnectedAt } — lets a refreshing
     // player resume with their score intact within RECONNECT_GRACE_MS.
     disconnectedPlayers: new Map(),
+    // Host-configurable before the game starts (see room:settings:update).
+    settings: {
+      roundsPerPlayer: ROUNDS_PER_PLAYER,
+      roundDurationMs: ROUND_DURATION_MS,
+    },
   };
   rooms.set(code, room);
   return room;

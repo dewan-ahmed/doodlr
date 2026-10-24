@@ -16,6 +16,7 @@ export default function App() {
   const [myWord, setMyWord] = useState(null); // only set when I'm the drawer
   const [wordChoices, setWordChoices] = useState(null); // only set when I'm the drawer
   const [roundEnd, setRoundEnd] = useState(null); // { reason, word, players }
+  const [settings, setSettings] = useState({ roundsPerPlayer: 2, roundDurationMs: 80_000 });
   // True while we're silently attempting to rejoin a previously-saved room
   // (e.g. the page was just refreshed) — avoids flashing the join form.
   const [reconnecting, setReconnecting] = useState(() => !!loadSession());
@@ -53,12 +54,17 @@ export default function App() {
       clearSession(); // the game's over — don't auto-rejoin this room next load
     }
 
+    function handleSettings(newSettings) {
+      setSettings(newSettings);
+    }
+
     socket.on("room:players", handlePlayers);
     socket.on("round:choosing", handleRoundChoosing);
     socket.on("word:choices", handleWordChoices);
     socket.on("round:start", handleRoundStart);
     socket.on("round:end", handleRoundEnd);
     socket.on("game:over", handleGameOver);
+    socket.on("room:settings", handleSettings);
 
     return () => {
       socket.off("room:players", handlePlayers);
@@ -67,12 +73,14 @@ export default function App() {
       socket.off("round:start", handleRoundStart);
       socket.off("round:end", handleRoundEnd);
       socket.off("game:over", handleGameOver);
+      socket.off("room:settings", handleSettings);
     };
   }, []);
 
-  function handleJoined({ room, player, players: initialPlayers, gameState }) {
+  function handleJoined({ room, player, players: initialPlayers, gameState, settings: initialSettings }) {
     setSession({ room, player });
     setPlayers(initialPlayers || []);
+    if (initialSettings) setSettings(initialSettings);
     saveSession(room, player.name);
 
     // Reflect the room in the URL so the address bar itself is a shareable
@@ -142,7 +150,14 @@ export default function App() {
   }
 
   if (screen === "lobby") {
-    return <Lobby room={session.room} player={session.player} players={players} />;
+    return (
+      <Lobby
+        room={session.room}
+        player={session.player}
+        players={players}
+        settings={settings}
+      />
+    );
   }
 
   if (screen === "choosing") {

@@ -41,6 +41,31 @@
   margin: 4px 0 16px;
 }
 
+.game-settings {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.game-settings h2 {
+  margin-top: 0;
+  font-size: 16px;
+}
+
+.game-settings-controls {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+}
+
+.game-settings-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
 .choosing {
   max-width: 480px;
   margin: 80px auto;
