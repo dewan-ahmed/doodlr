@@ -84,7 +84,17 @@ export function registerSocketHandlers(io) {
       socket.to(room.code).emit("drawing:stroke", segment);
     });
 
-    // TODO: drawing:clear, guess:submit, round:end, game:over
+    socket.on("drawing:clear", () => {
+      const code = socket.data.roomCode;
+      const room = getRoom(code);
+      if (!room) return;
+      if (room.status !== "playing") return;
+      if (socket.id !== room.currentDrawerId) return;
+
+      socket.to(room.code).emit("drawing:clear");
+    });
+
+    // TODO: guess:submit, round:end, game:over
 
     socket.on("disconnect", () => {
       const code = socket.data.roomCode;

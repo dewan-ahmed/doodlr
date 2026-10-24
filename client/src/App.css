@@ -82,6 +82,17 @@
   cursor: crosshair;
 }
 
+.canvas-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.clear-btn {
+  align-self: flex-start;
+}
+
 .sidebar {
   flex: 1;
   display: flex;

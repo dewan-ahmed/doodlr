@@ -40,8 +40,19 @@ export default function Game({ room, player, players, round, myWord }) {
       drawSegment(ctx, canvas, segment.from, segment.to, segment);
     }
 
+    function handleRemoteClear() {
+      const canvas = canvasRef.current;
+      const ctx = ctxRef.current;
+      if (!canvas || !ctx) return;
+      clearCanvas(ctx, canvas);
+    }
+
     socket.on("drawing:stroke", handleRemoteStroke);
-    return () => socket.off("drawing:stroke", handleRemoteStroke);
+    socket.on("drawing:clear", handleRemoteClear);
+    return () => {
+      socket.off("drawing:stroke", handleRemoteStroke);
+      socket.off("drawing:clear", handleRemoteClear);
+    };
   }, []);
 
   function handlePointerDown(e) {
@@ -67,6 +78,12 @@ export default function Game({ room, player, players, round, myWord }) {
     lastPointRef.current = null;
   }
 
+  function handleClear() {
+    if (!isDrawer) return;
+    clearCanvas(ctxRef.current, canvasRef.current);
+    socket.emit("drawing:clear");
+  }
+
   return (
     <div className="game">
       <header>
@@ -82,16 +99,24 @@ export default function Game({ room, player, players, round, myWord }) {
       </header>
 
       <div className="game-body">
-        <canvas
-          ref={canvasRef}
-          width={800}
-          height={600}
-          className={isDrawer ? "drawable" : ""}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
-        />
+        <div className="canvas-wrap">
+          <canvas
+            ref={canvasRef}
+            width={800}
+            height={600}
+            className={isDrawer ? "drawable" : ""}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+          />
+
+          {isDrawer && (
+            <button type="button" className="clear-btn" onClick={handleClear}>
+              Clear canvas
+            </button>
+          )}
+        </div>
 
         <aside className="sidebar">
           <div className="players">{/* TODO: player list + scores */}</div>
