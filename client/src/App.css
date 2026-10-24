@@ -37,6 +37,24 @@
   padding: 4px 0;
 }
 
+.choosing {
+  max-width: 480px;
+  margin: 80px auto;
+  text-align: center;
+}
+
+.choices {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.choices button {
+  padding: 12px 20px;
+  font-size: 16px;
+}
+
 .game {
   max-width: 1000px;
   margin: 24px auto;

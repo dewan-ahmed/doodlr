@@ -35,25 +35,16 @@ async function main() {
   assert(!joinRes.player.isHost, "guest is not host");
   assert(joinRes.players.length === 2, "room has 2 players after join");
 
-  // Both should receive round:start; only the drawer gets word:assigned.
-  const hostRoundStart = new Promise((resolve) => host.once("round:start", resolve));
-  const guestRoundStart = new Promise((resolve) => guest.once("round:start", resolve));
-  const hostWord = new Promise((resolve) => host.once("word:assigned", resolve));
-  let guestGotWord = false;
-  guest.once("word:assigned", () => {
-    guestGotWord = true;
-  });
+  // game:start kicks off the word-choice phase (round:choosing), not the
+  // round directly — see chunk2-word-choice.mjs for the full word-pick flow.
+  const hostChoosing = new Promise((resolve) => host.once("round:choosing", resolve));
+  const guestChoosing = new Promise((resolve) => guest.once("round:choosing", resolve));
 
   host.emit("game:start");
 
-  const [hostPayload, guestPayload] = await Promise.all([hostRoundStart, guestRoundStart]);
+  const [hostPayload, guestPayload] = await Promise.all([hostChoosing, guestChoosing]);
   assert(hostPayload.drawerId === host.id, "host (first player) is selected as drawer");
-  assert(hostPayload.wordLength > 0, "round:start includes word length");
   assert(guestPayload.drawerId === hostPayload.drawerId, "both clients agree on drawer");
-
-  const wordPayload = await hostWord;
-  assert(typeof wordPayload.word === "string" && wordPayload.word.length > 0, "drawer received the actual word");
-  assert(!guestGotWord, "non-drawer did NOT receive word:assigned");
 
   host.close();
   guest.close();

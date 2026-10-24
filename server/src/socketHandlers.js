@@ -49,9 +49,26 @@ export function registerSocketHandlers(io) {
       const players = listPlayers(room);
       if (players.length < 2) return;
 
-      room.status = "playing";
       room.round = 1;
-      startRound(io, room, players[0].id);
+      beginWordChoice(io, room, players[0].id);
+    });
+
+    socket.on("word:choose", ({ word }) => {
+      const code = socket.data.roomCode;
+      const room = getRoom(code);
+      if (!room) return;
+      if (room.status !== "choosing") return;
+      if (socket.id !== room.currentDrawerId) return;
+      if (!room.wordChoices?.includes(word)) return;
+
+      room.currentWord = word;
+      room.status = "playing";
+
+      io.to(room.code).emit("round:start", {
+        round: room.round,
+        drawerId: room.currentDrawerId,
+        wordLength: word.length,
+      });
     });
 
     // TODO: drawing:stroke, drawing:clear, guess:submit, round:end, game:over
@@ -76,19 +93,19 @@ export function registerSocketHandlers(io) {
   });
 }
 
-// Minimal round-start: auto-assigns a random word to the drawer and tells
-// everyone else who's drawing. Word-choice UI (pick 1 of 3) lands in a later
-// chunk — this just gets the lobby -> game transition working end to end.
-function startRound(io, room, drawerId) {
+// Puts the room into the "choosing" phase: the drawer gets 3 word options
+// privately, everyone else is told who's drawing (but not the options).
+function beginWordChoice(io, room, drawerId) {
+  room.status = "choosing";
   room.currentDrawerId = drawerId;
-  const [{ word }] = getRandomWords(1);
-  room.currentWord = word;
+  room.currentWord = null;
+  const choices = getRandomWords(3).map((w) => w.word);
+  room.wordChoices = choices;
 
-  io.to(room.code).emit("round:start", {
+  io.to(room.code).emit("round:choosing", {
     round: room.round,
     drawerId,
-    wordLength: word.length,
   });
 
-  io.to(drawerId).emit("word:assigned", { word });
+  io.to(drawerId).emit("word:choices", { choices });
 }
