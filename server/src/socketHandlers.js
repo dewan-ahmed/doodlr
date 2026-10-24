@@ -190,11 +190,15 @@ export function registerSocketHandlers(io) {
         socket.emit("chat:message", {
           type: "correct-self",
           text: `You guessed it! +${guesserPoints} points. The word was "${room.currentWord}".`,
+          points: guesserPoints,
         });
 
         socket.to(room.code).emit("chat:message", {
           type: "correct-other",
           text: `${player.name} guessed the word! (+${guesserPoints})`,
+          points: guesserPoints,
+          playerId: socket.id,
+          name: player.name,
         });
 
         io.to(room.code).emit("room:players", listPlayers(room));

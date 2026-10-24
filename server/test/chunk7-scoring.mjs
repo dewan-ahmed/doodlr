@@ -1,5 +1,7 @@
 // Verifies scoring: a correct guess awards points to both guesser and
-// drawer, and an updated room:players leaderboard is broadcast.
+// drawer, an updated room:players leaderboard is broadcast, and the
+// correct-self/correct-other chat:message payloads include the exact
+// points awarded (used by the client for sound/visual feedback).
 import { io } from "socket.io-client";
 
 const URL = "http://localhost:3001";
@@ -28,39 +30,65 @@ async function setupPlayingRoom() {
     guest.emit("room:join", { code: createRes.room, name: "Bob" }, resolve)
   );
 
-  const hostChoices = new Promise((resolve) => host.once("word:choices", resolve));
+  // Drawer order is shuffled each game, so figure out who's actually
+  // drawing instead of assuming it's always the host.
+  const hostChoosing = new Promise((resolve) => host.once("round:choosing", resolve));
+  const hostChoicesPromise = new Promise((resolve) => host.once("word:choices", resolve));
+  const guestChoicesPromise = new Promise((resolve) => guest.once("word:choices", resolve));
   host.emit("game:start");
-  const { choices } = await hostChoices;
 
-  const hostRoundStart = new Promise((resolve) => host.once("round:start", resolve));
-  host.emit("word:choose", { word: choices[0] });
-  await hostRoundStart;
+  const { drawerId } = await hostChoosing;
+  const drawer = drawerId === host.id ? host : guest;
+  const guesser = drawer === host ? guest : host;
+  const { choices } = await (drawer === host ? hostChoicesPromise : guestChoicesPromise);
 
-  return { host, guest, word: choices[0] };
+  const roundStart = new Promise((resolve) => drawer.once("round:start", resolve));
+  drawer.emit("word:choose", { word: choices[0] });
+  await roundStart;
+
+  return { drawer, guesser, word: choices[0] };
 }
 
 async function main() {
-  const { host, guest, word } = await setupPlayingRoom();
+  const { drawer, guesser, word } = await setupPlayingRoom();
 
-  const hostLeaderboardUpdate = new Promise((resolve) => host.once("room:players", resolve));
-  const guestLeaderboardUpdate = new Promise((resolve) => guest.once("room:players", resolve));
+  const drawerLeaderboardUpdate = new Promise((resolve) => drawer.once("room:players", resolve));
+  const guesserLeaderboardUpdate = new Promise((resolve) => guesser.once("room:players", resolve));
+  const correctSelf = new Promise((resolve) => guesser.once("chat:message", resolve));
+  const correctOther = new Promise((resolve) => drawer.once("chat:message", resolve));
 
-  guest.emit("guess:submit", { text: word });
+  guesser.emit("guess:submit", { text: word });
 
-  const [hostPlayers, guestPlayers] = await Promise.all([hostLeaderboardUpdate, guestLeaderboardUpdate]);
+  const [drawerPlayers, guesserPlayers] = await Promise.all([
+    drawerLeaderboardUpdate,
+    guesserLeaderboardUpdate,
+  ]);
 
-  const hostFromHostList = hostPlayers.find((p) => p.name === "Alice");
-  const guestFromHostList = hostPlayers.find((p) => p.name === "Bob");
+  const drawerFromList = drawerPlayers.find((p) => p.id === drawer.id);
+  const guesserFromList = drawerPlayers.find((p) => p.id === guesser.id);
 
-  assert(guestFromHostList.score > 0, "guesser (Bob) got positive points");
-  assert(hostFromHostList.score === 20, "drawer (Alice) got the fixed drawer bonus (20)");
+  assert(guesserFromList.score > 0, "guesser got positive points");
+  assert(drawerFromList.score === 20, "drawer got the fixed drawer bonus (20)");
   assert(
-    JSON.stringify(hostPlayers) === JSON.stringify(guestPlayers),
+    JSON.stringify(drawerPlayers) === JSON.stringify(guesserPlayers),
     "both clients receive the identical updated leaderboard"
   );
 
-  host.close();
-  guest.close();
+  const correctSelfMsg = await correctSelf;
+  const correctOtherMsg = await correctOther;
+  assert(
+    correctSelfMsg.type === "correct-self" && correctSelfMsg.points === guesserFromList.score,
+    "the guesser's own chat:message includes the exact points they earned"
+  );
+  assert(
+    correctOtherMsg.type === "correct-other" &&
+      correctOtherMsg.points === guesserFromList.score &&
+      correctOtherMsg.playerId === guesser.id,
+    "everyone else's chat:message includes the same points and the guesser's playerId"
+  );
+
+  drawer.close();
+  guesser.close();
 
   console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
   process.exit(failures === 0 ? 0 : 1);

@@ -60,12 +60,12 @@ All core gameplay loops are implemented and covered by integration tests in
 - [x] Disconnect handling (drawer leaving mid-round, empty-room cleanup)
 - [x] Reconnect/resume support (refresh keeps your score and place in-game)
 - [x] Host-configurable rounds-per-player and round length, set pre-game
+- [x] Sound + visual feedback for correct guesses and round end (mutable)
 
 ### Known limitations / ideas for next time
 
 - No persistence — rooms are in-memory and die with the server process.
 - No mobile-specific touch polish beyond basic pointer events.
-- No sound/visual feedback for correct guesses or round end yet.
 - Reconnect grace period is fixed (`RECONNECT_GRACE_MS`) and not host-configurable.
 
 ## Testing

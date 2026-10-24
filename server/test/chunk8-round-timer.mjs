@@ -29,24 +29,32 @@ async function setupPlayingRoom(names) {
     );
   }
 
-  const hostChoices = new Promise((resolve) => host.once("word:choices", resolve));
+  // Drawer order is shuffled each game, so figure out who's actually
+  // drawing instead of assuming it's always the host.
+  const hostChoosing = new Promise((resolve) => host.once("round:choosing", resolve));
+  const choicesPromises = sockets.map((s) => new Promise((resolve) => s.once("word:choices", resolve)));
   host.emit("game:start");
-  const { choices } = await hostChoices;
+
+  const { drawerId } = await hostChoosing;
+  const drawerIndex = sockets.findIndex((s) => s.id === drawerId);
+  const drawer = sockets[drawerIndex];
+  const guessers = sockets.filter((s) => s !== drawer);
+  const { choices } = await choicesPromises[drawerIndex];
 
   const roundStarts = sockets.map((s) => new Promise((resolve) => s.once("round:start", resolve)));
-  host.emit("word:choose", { word: choices[0] });
+  drawer.emit("word:choose", { word: choices[0] });
   const [roundStartPayload] = await Promise.all(roundStarts);
 
-  return { sockets, host, guests: rest, word: choices[0], roundStartPayload };
+  return { sockets, drawer, guessers, word: choices[0], roundStartPayload };
 }
 
 async function testAllCorrectEndsRoundEarly() {
-  const { sockets, host, guests, word } = await setupPlayingRoom(["Alice", "Bob", "Carol"]);
+  const { sockets, guessers, word } = await setupPlayingRoom(["Alice", "Bob", "Carol"]);
 
   const roundEnds = sockets.map((s) => new Promise((resolve) => s.once("round:end", resolve)));
 
-  for (const guest of guests) {
-    guest.emit("guess:submit", { text: word });
+  for (const guesser of guessers) {
+    guesser.emit("guess:submit", { text: word });
   }
 
   const results = await Promise.all(roundEnds);
