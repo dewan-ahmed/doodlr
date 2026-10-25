@@ -1,4 +1,4 @@
-# Custom Scribble-style Game
+# Doodlr
 
 A Scribbl.io-inspired drawing & guessing game, built from scratch.
 
@@ -7,9 +7,9 @@ A Scribbl.io-inspired drawing & guessing game, built from scratch.
 - `server/` — Node + Express + Socket.io backend (in-memory rooms, real-time events)
 - `client/` — React (Vite) frontend: Home -> Lobby -> Word Choice -> Game -> Game Over
 
-## Running locally
+## How to play locally
 
-In one terminal:
+**1. Start the server** (terminal 1):
 
 ```bash
 cd server
@@ -17,7 +17,9 @@ npm install
 npm run dev
 ```
 
-In another terminal:
+Runs on http://localhost:3001.
+
+**2. Start the client** (terminal 2):
 
 ```bash
 cd client
@@ -25,10 +27,26 @@ npm install
 npm run dev
 ```
 
-Client runs on http://localhost:5173, server on http://localhost:3001.
+Runs on http://localhost:5173.
 
-To play with others on the same network, set `VITE_SERVER_URL` for the client
-to point at your machine's LAN IP instead of localhost.
+**3. Open it in your browser and get a second player in:**
+
+- Go to http://localhost:5173 and create a room — you become the host and get
+  a 5-letter room code.
+- You need 2+ players to start, so open a **second browser tab/window** (or
+  an incognito window) at the same URL and join with that code. Each
+  tab/window acts as an independent player.
+- As host, you can tweak rounds-per-player / round length in the lobby before
+  hitting **Start game**.
+
+**To play with real people on your network** instead of extra tabs:
+
+- Find your machine's LAN IP, e.g. on macOS: `ipconfig getifaddr en0`
+- Start the client with `VITE_SERVER_URL=http://<your-ip>:3001 npm run dev`
+  so it points at your machine instead of localhost.
+- Share `http://<your-ip>:5173` with them, or just use the in-app
+  **"Copy invite link"** button once you're in a room — it encodes the room
+  code in the URL so they land straight on the join form, pre-filled.
 
 ## How it plays
 
