@@ -1,0 +1,33 @@
+services:
+  # Node + Express + Socket.io backend.
+  - type: web
+    name: doodlr-server
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      # Set this to your client's deployed URL after both services are live
+      # (e.g. https://doodlr-client.onrender.com). Required for CORS/Socket.io
+      # to accept connections from the client.
+      - key: CLIENT_ORIGIN
+        sync: false
+
+  # React (Vite) frontend, served as a static site.
+  - type: web
+    name: doodlr-client
+    runtime: static
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Set this to your server's deployed URL (e.g. https://doodlr-server.onrender.com)
+      # BEFORE building, since Vite inlines env vars at build time.
+      - key: VITE_SERVER_URL
+        sync: false
+    routes:
+      # Single-page app: all paths serve index.html, routing is client-side.
+      - type: rewrite
+        source: /*
+        destination: /index.html

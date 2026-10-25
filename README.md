@@ -48,6 +48,39 @@ Runs on http://localhost:5173.
   **"Copy invite link"** button once you're in a room — it encodes the room
   code in the URL so they land straight on the join form, pre-filled.
 
+## Deploying (play with remote colleagues)
+
+For a stable public URL — rather than everyone needing to be on the same
+network — deploy the server and client as two separate web services. A
+`render.yaml` is included for a one-click deploy on [Render](https://render.com):
+
+1. Push this repo to GitHub (already done if you're reading this on
+   `dewan-ahmed/doodlr`).
+2. On Render: **New** → **Blueprint**, connect this repo. Render reads
+   `render.yaml` and proposes two services: `doodlr-server` (Node web
+   service) and `doodlr-client` (static site).
+3. Deploy `doodlr-server` first and note its URL, e.g.
+   `https://doodlr-server.onrender.com`.
+4. Set that URL as `VITE_SERVER_URL` on `doodlr-client`, then deploy it. Note
+   its URL, e.g. `https://doodlr-client.onrender.com`.
+   (Vite inlines env vars at *build* time, so this must be set before the
+   client builds — if you set it after, trigger a manual redeploy.)
+5. Go back to `doodlr-server` and set `CLIENT_ORIGIN` to the client's URL
+   from step 4, then redeploy the server (needed for Socket.io's CORS check
+   to accept the client's connections).
+6. Share the client URL (or an in-app "Copy invite link" once you've made a
+   room) with your colleagues — works from anywhere, no shared network needed.
+
+Prefer Vercel/Netlify for the client and Render (or Railway/Fly) for the
+server instead? Same idea: deploy the server first, set `VITE_SERVER_URL` on
+the client's build, then set `CLIENT_ORIGIN` on the server to the client's
+final URL and redeploy it.
+
+For a quick one-off session without a permanent deploy, a tunnel
+(`ngrok http 5173` / `npx cloudflared tunnel --url http://localhost:5173`,
+plus one for port 3001 with `VITE_SERVER_URL`/`CLIENT_ORIGIN` pointed at each
+other's tunnel URLs) works too, but the URL changes every time you restart it.
+
 ## How it plays
 
 1. One player creates a room and shares the 5-letter code (or an invite link).
